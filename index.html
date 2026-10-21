@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Angeln in Rostock – Wetter & Bisstipp 3-Tage</title>
+<style>
+  :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0e1a26; color:#e8eef4; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; }
+  h1 { font-size:1.35rem; margin:0 0 4px; }
+  .sub { color:#8fb4d4; margin:0 0 16px; font-size:.9rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; }
+  .card { background:#16283a; border-radius:12px; padding:14px; border:1px solid #24405a; }
+  .card h2 { font-size:1rem; margin:0 0 10px; color:#9fd0ff; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.8rem; font-weight:600; }
+  .top { background:#14532d; color:#a7f3a0; } .gut { background:#1e3a5f; color:#93c5fd; }
+  .maessig{ background:#4a3a17; color:#fcd34d; } .schlecht{ background:#5b1f24; color:#fca5a5; }
+  .slot { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid #24405a; font-size:.9rem; flex-wrap:wrap; }
+  .slot:last-child { border-bottom:none; }
+  .time { font-weight:600; min-width:120px; }
+  .details { color:#9fb6c9; font-size:.78rem; }
+  .reasons { color:#a7f3a0; font-size:.75rem; flex-basis:100%; }
+  table { width:100%; border-collapse:collapse; font-size:.85rem; }
+  th, td { text-align:left; padding:6px 6px; border-bottom:1px solid #24405a; }
+  th { color:#9fd0ff; font-weight:600; }
+  .summary { font-size:.95rem; line-height:1.5; }
+  .best { color:#a7f3a0; font-weight:600; }
+  .error { background:#5b1f24; padding:12px; border-radius:10px; }
+  footer { margin-top:16px; color:#5f7d99; font-size:.75rem; }
+</style>
+</head>
+<body>
+<h1>🎣 Angeln in Rostock – 3-Tage-Wetter & Biss-Empfehlung</h1>
+<p class="sub">Daten: Open-Meteo (Warnow-Region, 54.09°N / 12.14°O) · Live-Abgleich beim Laden</p>
+<div id="app"><p>Lade Wetterdaten …</p></div>
+<footer>Datenquelle: <a href="https://open-meteo.com/" style="color:#9fd0ff">Open-Meteo</a> · Die Empfehlung basiert auf allgemeinen Erfahrungswerten zur Bissaktivität (Luftdruckverlauf, Bewölkung, Wind, Niederschlag) und ersetzt keine lokalen Regelungen. Bitte beachte das Fischereirecht MV, Schonzeiten und ggf. ein gültiges Angelkarten-Angebot des Gewässers.</footer>
+<script>
+const API = "https://api.open-meteo.com/v1/forecast?latitude=54.0887&longitude=12.1405" +
+  "&hourly=temperature_2m,apparent_temperature,surface_pressure,precipitation,precipitation_probability,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m" +
+  "&timezone=Europe%2FBerlin&forecast_days=4";
+
+const dirName = d => ["N","NNO","NO","ONO","O","OSO","SO","SSO","S","SSW","SW","WSW","W","WNW","NW","NNW"][Math.round(d/22.5)%16];
+
+async function main() {
+  let data;
+  try {
+    const r = await fetch(API);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    data = await r.json();
+  } catch (e) {
+    document.getElementById("app").innerHTML =
+      '<p class="error">Wetterdaten konnten nicht geladen werden: ' + e.message +
+      ". In der Canvas-Vorschau ist der Netzwerkzugriff blockiert – auf GitHub Pages funktioniert die Seite normal.</p>";
+    return;
+  }
+  const h = data.hourly;
+  const now = new Date();
+  let i0 = h.time.findIndex(t => new Date(t) >= now);
+  if (i0 < 0) i0 = 0;
+
+  // 3 Tage ab jetzt, in 3-Stunden-Slots
+  const slots = [];
+  for (let i = i0; i < Math.min(i0 + 72, h.time.length); i += 3) {
+    slots.push(buildSlot(h, i));
+  }
+  render(slots);
+}
+
+function buildSlot(h, i) {
+  const dt = new Date(h.time[i]);
+  const pDrop6 = h.surface_pressure[Math.max(0,i-6)] - h.surface_pressure[i]; // + = fallender Druck
+  const wind = h.wind_speed_10m[i], gust = h.wind_gusts_10m[i];
+  const dir = h.wind_direction_10m[i];
+  const cloud = h.cloud_cover[i];
+  const prec = h.precipitation[i];
+  const temp = h.temperature_2m[i];
+  const reasons = [];
+  let score = 50;
+
+  // 1) Luftdruckverlauf – wichtigster Faktor
+  if (pDrop6 >= 4) { score += 20; reasons.push("stark fallender Luftdruck (" + pDrop6.toFixed(1) + " hPa/6h)"); }
+  else if (pDrop6 >= 1.5) { score += 14; reasons.push("fallender Luftdruck (" + pDrop6.toFixed(1) + " hPa/6h)"); }
+  else if (pDrop6 <= -4) { score -= 15; reasons.push("stark steigender Luftdruck – Rückzugphase"); }
+  else if (pDrop6 <= -1.5) { score -= 8; reasons.push("steigender Luftdruck – zähes Bissverhalten"); }
+  else { reasons.push("stabiler Luftdruck (" + pDrop6.toFixed(1) + " hPa/6h)"); }
+
+  // 2) Bewölkung
+  if (cloud >= 50 && cloud <= 97) { score += 8; reasons.push("bewölkt/bedeckt – aktiver im Flachwasser"); }
+  else if (cloud < 20) { score -= 5; reasons.push("stark sonnig – mittags kritisch"); }
+
+  // 3) Niederschlag
+  if (prec > 0 && prec < 2) { score += 8; reasons.push("leichter Regen – Sauerstoff & Sichtschutz"); }
+  else if (prec >= 2 && prec < 5 && wind < 45) { score += 3; reasons.push("mäßiger Regen – ok"); }
+  else if (prec >= 5) { score -= 8; reasons.push("kräftiger Regen"); }
+
+  // 4) Wind: leichte bis mäßige Brise = gute Ripples
+  if (wind >= 5 && wind <= 25) { score += 10; reasons.push("mäßiger Wind (" + Math.round(wind) + " km/h) – Ripples & Sauerstoff"); }
+  else if (wind > 38 || gust > 60) { score -= 12; reasons.push("Sturm/lebhafte Böen – schwer befischbar"); }
+
+  // 5) Windrichtung: anlandig (W–SW) vs. ablandig-kalt
+  const dirS = dirName(dir);
+  if (["W","WNW","NW","SW","WSW","SSW"].includes(dirS)) { score += 5; reasons.push("Wind aus " + dirS + " (anlandig, wärmer/nährstoffreich)"); }
+  else if (["N","NNO","NO","NNW"].includes(dirS) && wind > 15) { score -= 5; reasons.push("kalter Wind aus " + dirS); }
+
+  // 6) Tageszeit
+  const hr = dt.getHours();
+  if (hr >= 3 && hr <= 8) { score += 12; reasons.push("Morgendämmerung – Hauptbisszeit"); }
+  else if (hr >= 18 && hr <= 22) { score += 12; reasons.push("Abenddämmerung – Hauptbisszeit"); }
+  else if (hr >= 11 && hr <= 16 && cloud < 40) { score -= 5; reasons.push("Mittagssonne"); }
+
+  // 7) Temperaturverlauf
+  const dTemp = temp - h.temperature_2m[Math.max(0,i-3)];
+  if (dTemp >= 1.5) { score += 5; reasons.push("wärmer werdend (+" + dTemp.toFixed(1) + "°C/3h)"); }
+  if (dTemp <= -3) { score -= 8; reasons.push("Kaltlufteinbruch (" + dTemp.toFixed(1) + "°C/3h) – Bissflaute"); }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  return {
+    dt, score, temp, tempApp: h.apparent_temperature[i], pressure: h.surface_pressure[i],
+    pDrop6, prec, precProb: h.precipitation_probability[i], cloud, wind, gust, dirS,
+    reasons
+  };
+}
+
+function badge(score) {
+  if (score >= 70) return '<span class="badge top">TOP-BISS</span>';
+  if (score >= 58) return '<span class="badge gut">GUT</span>';
+  if (score >= 45) return '<span class="badge maessig">MÄSSIG</span>';
+  return '<span class="badge schlecht">SCHLECHT</span>';
+}
+
+const fmt = dt => dt.toLocaleString("de-DE", { weekday:"short", day:"2-digit.", month:"2-digit.", hour:"2-digit", minute:"2-digit" }) + " Uhr";
+
+function render(slots) {
+  // Tagesübersicht
+  const days = {};
+  for (const s of slots) {
+    const k = s.dt.getFullYear() + "-" + String(s.dt.getMonth()+1).padStart(2,"0") + "-" + String(s.dt.getDate()).padStart(2,"0");
+    (days[k] = days[k] || []).push(s);
+  }
+  const now = new Date();
+  const nowKey = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
+  let html = '<div class="grid">';
+  for (const [k, arr] of Object.entries(days)) {
+    const avg = Math.round(arr.reduce((a,s)=>a+s.score,0)/arr.length);
+    const best = arr.reduce((a,s)=>s.score>a.score?s:a, arr[0]);
+    const tmin = Math.min(...arr.map(s=>s.temp)).toFixed(1), tmax = Math.max(...arr.map(s=>s.temp)).toFixed(1);
+    const dayName = arr[0].dt.toLocaleDateString("de-DE",{weekday:"long", day:"2-digit.", month:"2-digit."});
+    const dirCounts = {};
+    for (const s of arr) dirCounts[s.dirS] = (dirCounts[s.dirS]||0)+1;
+    const mainDir = Object.entries(dirCounts).sort((a,b)=>b[1]-a[1])[0][0];
+    html += '<div class="card"><h2>' + dayName + (k===nowKey?" (heute)":"") + '</h2>' +
+      '<p style="margin:0 0 8px">' + badge(avg) + ' Ø-Score ' + avg + '/100</p>' +
+      '<p class="summary" style="margin:0 0 8px">🌡 ' + tmin + '…' + tmax + '°C · 🔽 ' +
+      arr[0].pressure.toFixed(0) + '→' + arr[arr.length-1].pressure.toFixed(0) + ' hPa · 🌬 ' +
+      Math.round(Math.min(...arr.map(s=>s.wind))) + '–' + Math.round(Math.max(...arr.map(s=>s.wind))) + ' km/h aus ' + mainDir + '</p>' +
+      '<p class="summary best">🏆 Beste Zeit: ' + fmt(best.dt) + '</p></div>';
+  }
+  html += "</div>";
+
+  // Slot-Details
+  html += '<div class="card" style="margin-top:14px"><h2>3-Stunden-Takt: Biss-Chance im Detail</h2>';
+  for (const s of slots) {
+    html += '<div class="slot"><span class="time">' + fmt(s.dt) + '</span>' + badge(s.score) +
+      '<span class="details">🌡 ' + s.temp.toFixed(1) + '°C (gefühlt ' + s.tempApp.toFixed(0) + '°C) · 🔽 ' +
+      s.pressure.toFixed(0) + ' hPa (' + (s.pDrop6>=0?"↓":"↑") + Math.abs(s.pDrop6).toFixed(1) + '/6h) · ' +
+      '☁️ ' + Math.round(s.cloud) + '% · 🌧 ' + (s.prec>0?s.prec.toFixed(1):"0") + ' mm (' + s.precProb + '%) · 🌬 ' +
+      Math.round(s.wind) + ' km/h (Böen ' + Math.round(s.gust) + ') aus ' + s.dirS + '</span>' +
+      '<span class="reasons">→ ' + s.reasons.join("; ") + '</span></div>';
+  }
+  html += "</div>";
+
+  // Erläuterung
+  html += '<div class="card" style="margin-top:14px"><h2>Warum diese Empfehlung? – Wetter & Bissaktivität</h2><div class="summary">' +
+    "<p><b>Luftdruck (wichtigster Faktor):</b> <b>Fallender Luftdruck</b> (ab ca. 1,5–2 hPa in 6 h) ist das klassische Top-Bissfenster – Fische spüren die Änderung über die Schwimmblase und fressen vermehrt, bevor das Tief durchzieht. Steigt der Druck nach dem Tief rasch, sind Fische oft tagelang zäh. Langer stabiler Hochdruck = ruhiges, selektives Fressen.</p>" +
+    "<p><b>Bewölkung:</b> Bedeckter Himmel (50–100 %) macht Fische mutiger – Raubfisch jagt auch tagsüber im Flachwasser. Blanker Himmel verlagert die Aktivität in Dämmerung und Nacht.</p>" +
+    "<p><b>Niederschlag:</b> Niesel/leichter Regen senkt die Sicht für Räuber (Vorteil Köderfisch) und bringt Sauerstoff und Nahrung – sehr gut. Starkregen und kalte trübe Schwallfluten sind eher Bremsen.</p>" +
+    "<p><b>Wind:</b> 5–25 km/h mit Ripples an der Oberfläche ist ideal (Sauerstoff, Wellenbewegung, verteilt Duftstoffe). Totencalm ist schwer, Sturm mit Böen über 60 km/h ist kaum befischbar und gefährlich.</p>" +
+    "<p><b>Windrichtung:</b> Anlandige West-/Südwestwinde drücken wärmeres, nährstoffreicheres Wasser an Küste und Ufer – Weißfische und Kleinfische folgen, Räuber gleich mit. Kalte ablandige Nord-/Ostwinde drosseln die Aktivität, besonders im Winterhalbjahr.</p>" +
+    "<p><b>Tageszeit & Temperatur:</b> Morgens (03–08 h) und abends (18–22 h) sind Hauptbisszeiten. Ein Warmeeinbruch (+1,5 °C in 3 h) aktiviert, ein scharfer Kaltlufteinbruch (−3 °C in 3 h) bremst.</p>" +
+    "</div></div>";
+
+  document.getElementById("app").innerHTML = html;
+}
+
+main();
+</script>
+</body>
+</html>
