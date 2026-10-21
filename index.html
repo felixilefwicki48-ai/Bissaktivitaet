@@ -43,28 +43,38 @@ const API = "https://api.open-meteo.com/v1/forecast?latitude=54.0887&longitude=1
 const dirName = d => ["N","NNO","NO","ONO","O","OSO","SO","SSO","S","SSW","SW","WSW","W","WNW","NW","NNW"][Math.round(d/22.5)%16];
 
 async function main() {
+  const app = document.getElementById("app");
+  app.innerHTML = "<p>Lade Wetterdaten …</p>";
   let data;
   try {
-    const r = await fetch(API);
+    const r = await fetch(API, { cache: "no-store", signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new Error("HTTP " + r.status);
     data = await r.json();
   } catch (e) {
-    document.getElementById("app").innerHTML =
-      '<p class="error">Wetterdaten konnten nicht geladen werden: ' + e.message +
-      ". In der Canvas-Vorschau ist der Netzwerkzugriff blockiert – auf GitHub Pages funktioniert die Seite normal.</p>";
+    app.innerHTML =
+      '<p class="error">Wetterdaten konnten nicht geladen werden: <b>' + e.message + "</b><br><br>" +
+      "Mögliche Ursachen:<br>" +
+      "• Ad-/Trackingblocker (uBlock, Pi-hole, Router-Filter) blockiert api.open-meteo.com still → bitte für diese Seite deaktivieren<br>" +
+      "• Netzwerk-/DNS-Problem → Seite neu laden oder anderes Netz (z. B. Handy-Hotspot) testen<br>" +
+      "• Direkttest: die URL " + API.split('?')[0] + " muss im Browser JSON-Daten liefern</p>" +
+      '<p style="margin-top:12px"><button onclick="main()" style="background:#1e3a5f;color:#93c5fd;border:1px solid #3b6ea5;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:600">🔄 Erneut versuchen</button></p>';
     return;
   }
-  const h = data.hourly;
-  const now = new Date();
-  let i0 = h.time.findIndex(t => new Date(t) >= now);
-  if (i0 < 0) i0 = 0;
+  try {
+    const h = data.hourly;
+    const now = new Date();
+    let i0 = h.time.findIndex(t => new Date(t) >= now);
+    if (i0 < 0) i0 = 0;
 
-  // 3 Tage ab jetzt, in 3-Stunden-Slots
-  const slots = [];
-  for (let i = i0; i < Math.min(i0 + 72, h.time.length); i += 3) {
-    slots.push(buildSlot(h, i));
+    // 3 Tage ab jetzt, in 3-Stunden-Slots
+    const slots = [];
+    for (let i = i0; i < Math.min(i0 + 72, h.time.length); i += 3) {
+      slots.push(buildSlot(h, i));
+    }
+    render(slots);
+  } catch (e) {
+    app.innerHTML = '<p class="error">Fehler bei der Auswertung: ' + e.message + "</p>";
   }
-  render(slots);
 }
 
 function buildSlot(h, i) {
