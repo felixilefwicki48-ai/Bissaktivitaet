@@ -139,7 +139,7 @@ function badge(score) {
   return '<span class="badge schlecht">SCHLECHT</span>';
 }
 
-const fmt = dt => dt.toLocaleString("de-DE", { weekday:"short", day:"2-digit.", month:"2-digit.", hour:"2-digit", minute:"2-digit" }) + " Uhr";
+const fmt = dt => dt.toLocaleString("de-DE", { weekday:"short", day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }) + " Uhr";
 
 function render(slots) {
   // Tagesübersicht
@@ -155,7 +155,7 @@ function render(slots) {
     const avg = Math.round(arr.reduce((a,s)=>a+s.score,0)/arr.length);
     const best = arr.reduce((a,s)=>s.score>a.score?s:a, arr[0]);
     const tmin = Math.min(...arr.map(s=>s.temp)).toFixed(1), tmax = Math.max(...arr.map(s=>s.temp)).toFixed(1);
-    const dayName = arr[0].dt.toLocaleDateString("de-DE",{weekday:"long", day:"2-digit.", month:"2-digit."});
+    const dayName = arr[0].dt.toLocaleDateString("de-DE",{weekday:"long", day:"2-digit", month:"2-digit"});
     const dirCounts = {};
     for (const s of arr) dirCounts[s.dirS] = (dirCounts[s.dirS]||0)+1;
     const mainDir = Object.entries(dirCounts).sort((a,b)=>b[1]-a[1])[0][0];
