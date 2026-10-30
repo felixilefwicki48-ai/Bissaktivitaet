@@ -142,6 +142,15 @@ function badge(score) {
 
 const fmt = dt => dt.toLocaleString("de-DE", { weekday:"short", day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }) + " Uhr";
 
+function slotHtml(s) {
+  return '<div class="slot"><span class="time">' + fmt(s.dt) + '</span>' + badge(s.score) +
+    '<span class="details">🌡 ' + s.temp.toFixed(1) + '°C (gefühlt ' + s.tempApp.toFixed(0) + '°C) · 🔽 ' +
+    s.pressure.toFixed(0) + ' hPa (' + (s.pDrop6>=0?"↓":"↑") + Math.abs(s.pDrop6).toFixed(1) + '/6h) · ' +
+    '☁️ ' + Math.round(s.cloud) + '% · 🌧 ' + (s.prec>0?s.prec.toFixed(1):"0") + ' mm (' + s.precProb + '%) · 🌬 ' +
+    Math.round(s.wind) + ' km/h (Böen ' + Math.round(s.gust) + ') aus ' + s.dirS + '</span>' +
+    '<span class="reasons">→ ' + s.reasons.join("; ") + '</span></div>';
+}
+
 function render(slots) {
   // Tagesübersicht
   const days = {};
@@ -165,19 +174,10 @@ function render(slots) {
       '<p class="summary" style="margin:0 0 8px">🌡 ' + tmin + '…' + tmax + '°C · 🔽 ' +
       arr[0].pressure.toFixed(0) + '→' + arr[arr.length-1].pressure.toFixed(0) + ' hPa · 🌬 ' +
       Math.round(Math.min(...arr.map(s=>s.wind))) + '–' + Math.round(Math.max(...arr.map(s=>s.wind))) + ' km/h aus ' + mainDir + '</p>' +
-      '<p class="summary best">🏆 Beste Zeit: ' + fmt(best.dt) + '</p></div>';
-  }
-  html += "</div>";
-
-  // Slot-Details
-  html += '<div class="card" style="margin-top:14px"><h2>3-Stunden-Takt: Biss-Chance im Detail</h2>';
-  for (const s of slots) {
-    html += '<div class="slot"><span class="time">' + fmt(s.dt) + '</span>' + badge(s.score) +
-      '<span class="details">🌡 ' + s.temp.toFixed(1) + '°C (gefühlt ' + s.tempApp.toFixed(0) + '°C) · 🔽 ' +
-      s.pressure.toFixed(0) + ' hPa (' + (s.pDrop6>=0?"↓":"↑") + Math.abs(s.pDrop6).toFixed(1) + '/6h) · ' +
-      '☁️ ' + Math.round(s.cloud) + '% · 🌧 ' + (s.prec>0?s.prec.toFixed(1):"0") + ' mm (' + s.precProb + '%) · 🌬 ' +
-      Math.round(s.wind) + ' km/h (Böen ' + Math.round(s.gust) + ') aus ' + s.dirS + '</span>' +
-      '<span class="reasons">→ ' + s.reasons.join("; ") + '</span></div>';
+      '<p class="summary best">🏆 Beste Zeit: ' + fmt(best.dt) + '</p>' +
+      '<details' + (k===nowKey?" open":"") + ' style="margin-top:10px">' +
+      '<summary style="cursor:pointer;color:#9fd0ff;font-weight:600">📋 3-Stunden-Details anzeigen</summary>' +
+      '<div style="margin-top:6px">' + arr.map(slotHtml).join("") + '</div></details></div>';
   }
   html += "</div>";
 
